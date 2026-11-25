@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remote P2P</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #111827;
+      --card: #1e293b;
+      --border: #334155;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --green: #22c55e;
+      --red: #ef4444;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    header {
+      padding: 14px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand h1 { font-size: 17px; margin: 0; font-weight: 700; }
+    .badge { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600; }
+    .badge.ok { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 18px;
+      padding: 18px 24px;
+      flex: 1;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .section h2 { font-size: 14px; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    #topology-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: minmax(84px, auto) minmax(130px, auto) minmax(84px, auto);
+      gap: 10px;
+      background: radial-gradient(#334155 1px, transparent 1px);
+      background-size: 20px 20px;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px dashed var(--border);
+    }
+    .slot {
+      border: 1px dashed #334155;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.55);
+      min-height: 84px;
+      min-width: 0;
+    }
+    .slot.host { border: 2px solid var(--accent); background: rgba(56, 189, 248, 0.10); }
+    .slot-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; line-height: 1.2; }
+    .peer-chip {
+      width: 100%;
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      text-align: center;
+    }
+    .peer-chip .name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .peer-chip .meta { font-size: 11px; color: var(--muted); line-height: 1.35; word-break: break-word; }
+    .mini-displays { display: flex; justify-content: center; align-items: center; margin-top: 2px; }
+    .form-row { display: flex; flex-direction: column; gap: 6px; }
+    .form-row label { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+    input[type="number"], input[type="text"], select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 100%;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .row-inline { display: flex; gap: 8px; align-items: center; }
+    button {
+      background: var(--accent);
+      color: #0b1120;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    button.secondary:hover { border-color: var(--accent); }
+    button.danger { background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .peer-list { display: flex; flex-direction: column; gap: 8px; }
+    .peer-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .peer-item .info { display: flex; flex-direction: column; gap: 2px; }
+    .peer-item .info strong { font-size: 13px; }
+    .peer-item .info span { font-size: 12px; color: var(--muted); }
+    .toast { font-size: 12px; color: var(--green); min-height: 18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Remote P2P</h1>
+      <span id="hostBadge" class="badge ok">Host: Loading...</span>
+      <span id="stateBadge" class="badge">State: Local</span>
+    </div>
+    <div class="row-inline">
+      <button id="langBtn" class="secondary" onclick="toggleLanguage()">🌐 VI</button>
+      <button id="panicBtn" class="danger" onclick="triggerPanic()">Panic Reset (Local)</button>
+      <button id="exitBtn" class="danger" onclick="exitApp()">Thoát (Exit)</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Left: Visual Position Editor -->
+    <section class="section">
+      <h2 id="lblTopologyTitle">Bố trí vị trí thiết bị (So với máy Host ở giữa)</h2>
+      <div id="topology-grid">
+        <div></div>
+        <div class="slot" id="slot-Top"><span class="slot-label" id="lblSlotTop">Phía trên (Top)</span></div>
+        <div></div>
+
+        <div class="slot" id="slot-Left"><span class="slot-label" id="lblSlotLeft">Bên trái (Left)</span></div>
+        <div class="slot host">
+          <span class="slot-label" id="lblSlotHost">Máy hiện tại (Host)</span>
+          <div id="hostInfo" class="peer-chip">
+            <span class="name" id="hostName">LOCALHOST</span>
+            <span class="meta" id="hostRes">1920x1080</span>
+          </div>
+        </div>
+        <div class="slot" id="slot-Right"><span class="slot-label" id="lblSlotRight">Bên phải (Right)</span></div>
+
+        <div></div>
+        <div class="slot" id="slot-Bottom"><span class="slot-label" id="lblSlotBottom">Phía dưới (Bottom)</span></div>
+        <div></div>
+      </div>
+
+      <div class="row-inline" style="justify-content: space-between; align-items: center;">
+        <h2 id="lblPeersTitle" style="margin: 0;">Danh sách thiết bị đang kết nối</h2>
+        <button id="refreshBtn" class="secondary" style="padding: 5px 10px; font-size: 12px;" onclick="refreshPeers()">🔄 Làm mới</button>
+      </div>
+      <div id="peerList" class="peer-list"></div>
+
+      <div class="row-inline">
+        <input id="manualPeerInput" type="text" placeholder="Thêm thiết bị thủ công (vd: 192.168.88.105:51999)" />
+        <button id="connectBtn" onclick="addManualPeer()">Kết nối</button>
+      </div>
+    </section>
+
+    <!-- Right: Settings -->
+    <section class="section">
+      <h2 id="lblSettingsTitle">Cấu hình hệ thống</h2>
+
+      <div class="form-row">
+        <label><span id="lblPort">Cổng mạng QUIC (Port) — áp dụng khi khởi động lại</span></label>
+        <input id="portInput" type="number" min="1024" max="65535" value="51999" onchange="scheduleAutoSave()" />
+      </div>
+
+      <div class="form-row">
+        <label>
+          <span id="lblOvershoot">Lực đẩy vượt mép màn hình (Overshoot)</span>
+          <strong id="overshootVal">100 px</strong>
+        </label>
+        <input id="overshootRange" type="range" min="10" max="300" step="5" value="100"
+               oninput="syncOvershoot(this.value); scheduleAutoSave();" />
+        <input id="overshootInput" type="number" min="10" max="300" value="100"
+               oninput="syncOvershoot(this.value); scheduleAutoSave();" />
+      </div>
+
+      <div class="form-row">
+        <label><span id="lblKeymap">Ánh xạ phím Cross-OS (Key Mapping)</span></label>
+        <select id="keymapSelect" onchange="toggleCustomKeymapUI(); scheduleAutoSave();">
+          <option id="optSmart" value="SmartErgonomic">Smart Ergonomic (Ctrl ↔ Command giữa Win & Mac)</option>
+          <option id="optCustom" value="Custom">Custom (Tùy chỉnh chi tiết từng phím chức năng)</option>
+          <option id="optRaw" value="RawHardware">Raw Hardware (Giữ nguyên phím vật lý)</option>
+        </select>
+      </div>
+
+      <div id="customKeymapBox" style="display:none; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; flex-direction: column; gap: 10px;">
+        <div style="font-size: 12px; font-weight: 700; color: var(--accent);">Windows → macOS</div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Ctrl (Win) →</span>
+          <select id="winCtrlToMac" onchange="scheduleAutoSave()">
+            <option value="WinCmd">Command (⌘)</option>
+            <option value="Ctrl">Control (⌃)</option>
+            <option value="AltOpt">Option (⌥)</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Alt (Win) →</span>
+          <select id="winAltToMac" onchange="scheduleAutoSave()">
+            <option value="AltOpt">Option (⌥)</option>
+            <option value="WinCmd">Command (⌘)</option>
+            <option value="Ctrl">Control (⌃)</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Win (⊞) →</span>
+          <select id="winKeyToMac" onchange="scheduleAutoSave()">
+            <option value="Ctrl">Control (⌃)</option>
+            <option value="WinCmd">Command (⌘)</option>
+            <option value="AltOpt">Option (⌥)</option>
+          </select>
+        </div>
+
+        <div style="font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 4px;">macOS → Windows</div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Cmd (⌘) →</span>
+          <select id="macCmdToWin" onchange="scheduleAutoSave()">
+            <option value="Ctrl">Ctrl</option>
+            <option value="WinCmd">Win (⊞)</option>
+            <option value="AltOpt">Alt</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Option (⌥) →</span>
+          <select id="macOptToWin" onchange="scheduleAutoSave()">
+            <option value="AltOpt">Alt</option>
+            <option value="Ctrl">Ctrl</option>
+            <option value="WinCmd">Win (⊞)</option>
+          </select>
+        </div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Control (⌃) →</span>
+          <select id="macCtrlToWin" onchange="scheduleAutoSave()">
+            <option value="WinCmd">Win (⊞)</option>
+            <option value="Ctrl">Ctrl</option>
+            <option value="AltOpt">Alt</option>
+          </select>
+        </div>
+
+        <div id="lblSpecialKeys" style="font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 4px;">Phím chức năng đặc biệt</div>
+        <div class="row-inline">
+          <span style="font-size:12px; width: 110px;">Caps Lock →</span>
+          <select id="capsLockTo" onchange="scheduleAutoSave()">
+            <option id="optCapsKeep" value="57">Giữ nguyên (Caps Lock)</option>
+            <option value="41">Escape (Esc)</option>
+            <option value="224">Left Ctrl</option>
+            <option value="227">Left Win / Cmd</option>
+          </select>
+        </div>
+
+        <div class="row-inline">
+          <select id="ruleFrom"></select>
+          <span style="font-size:12px;">→</span>
+          <select id="ruleTo"></select>
+          <button id="addRuleBtn" type="button" onclick="addCustomRule()" style="padding: 6px 10px;">+ Thêm</button>
+        </div>
+        <div id="customRulesList" style="display:flex; flex-direction:column; gap:4px;"></div>
+      </div>
+
+      <div class="form-row">
+        <label class="row-inline" style="cursor:pointer; gap:8px; justify-content:flex-start;">
+          <input id="allowOutgoingCheck" type="checkbox" checked onchange="scheduleAutoSave()" style="width:auto;" />
+          <span id="lblAllowOutgoing">Cho phép máy này điều khiển máy khác (Outgoing Control)</span>
+        </label>
+      </div>
+
+      <div id="axWarningBanner" style="display:none; background:rgba(239,68,68,0.12); border:1px solid #ef4444; color:#fca5a5; border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.45;"></div>
+
+      <button id="saveBtn" onclick="saveConfig(false)">Lưu & Áp dụng ngay</button>
+      <div id="toast" class="toast"></div>
+
+      <div id="tipsBox" style="font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px;"></div>
+    </section>
+  </main>
+
+  <script>
+    const I18N = {
+      vi: {
+        langBtn: "🌐 Tiếng Việt",
+        panicBtn: "Panic Reset (Local)",
+        exitBtn: "Thoát (Exit)",
+        topologyTitle: "Bố trí vị trí thiết bị (So với máy Host ở giữa)",
+        slotTop: "Phía trên (Top)",
+        slotLeft: "Bên trái (Left)",
+        slotHost: "Máy hiện tại (Host)",
+        slotRight: "Bên phải (Right)",
+        slotBottom: "Phía dưới (Bottom)",
+        peersTitle: "Danh sách thiết bị đang kết nối",
+        refreshBtn: "🔄 Làm mới",
+        refreshingBtn: "⏳ Đang kiểm tra...",
+        toastRefreshed: "Đã kiểm tra lại kết nối thiết bị!",
+        manualPlaceholder: "Thêm thiết bị thủ công (vd: 192.168.88.105:51999)",
+        connectBtn: "Kết nối",
+        settingsTitle: "Cấu hình hệ thống",
+        portLabel: "Cổng mạng QUIC (Port) — áp dụng khi khởi động lại",
+        overshootLabel: "Lực đẩy vượt mép màn hình (Overshoot)",
+        keymapLabel: "Ánh xạ phím Cross-OS (Key Mapping)",
+        optSmart: "Smart Ergonomic (Ctrl ↔ Command giữa Win & Mac)",
+        optCustom: "Custom (Tùy chỉnh chi tiết từng phím chức năng)",
+        optRaw: "Raw Hardware (Giữ nguyên phím vật lý)",
+        specialKeys: "Phím chức năng đặc biệt",
+        capsKeep: "Giữ nguyên (Caps Lock)",
+        addRule: "+ Thêm",
+        removeRule: "Xóa",
+        saveBtn: "Lưu & Áp dụng ngay",
+        noPeers: "Chưa có thiết bị nào kết nối. Đang quét mDNS trong mạng LAN...",
+        posLeft: "Bên trái (Left)",
+        posRight: "Bên phải (Right)",
+        posTop: "Phía trên (Top)",
+        posBottom: "Phía dưới (Bottom)",
+        toastSaved: "Đã lưu và áp dụng cấu hình!",
+        toastPlaced: (h, p) => `Đã đặt ${h} ở vị trí ${p}`,
+        toastConnecting: (a) => `Đang kết nối tới ${a}...`,
+        toastPanic: "Đã reset quyền điều khiển về Local!",
+        stateLocal: "Local",
+        stateControlling: "Đang điều khiển",
+        stateControlled: "Đang bị điều khiển",
+        allowOutgoingLabel: "Cho phép máy này điều khiển máy khác (Outgoing Control)",
+        axWarning: "⚠️ Thiếu quyền Accessibility (Trợ năng): Đã khóa chiều điều khiển đi từ máy này để tránh lỗi điều khiển song song 2 máy. Hãy cấp quyền cho app trong System Settings → Privacy & Security → Accessibility rồi mở lại app.",
+        tips: (px) => `<strong>Mẹo sử dụng:</strong><br/>• Đẩy chuột vượt mép màn hình <strong>${px}px</strong> để chuyển sang máy kế bên.<br/>• Kéo ngược lại vượt mép âm <strong>${px}px</strong> để tự động quay về.<br/>• Phím thoát khẩn cấp: <code>Ctrl+Alt+Shift+Esc</code> (Win) hoặc <code>Cmd+Opt+Ctrl+Esc</code> (Mac).`
+      },
+      en: {
+        langBtn: "🌐 English",
+        panicBtn: "Panic Reset (Local)",
+        exitBtn: "Exit",
+        topologyTitle: "Device Layout (Relative to Host in Center)",
+        slotTop: "Top",
+        slotLeft: "Left",
+        slotHost: "This Machine (Host)",
+        slotRight: "Right",
+        slotBottom: "Bottom",
+        peersTitle: "Connected Devices",
+        refreshBtn: "🔄 Refresh",
+        refreshingBtn: "⏳ Checking...",
+        toastRefreshed: "Connections refreshed!",
+        manualPlaceholder: "Add peer manually (e.g. 192.168.88.105:51999)",
+        connectBtn: "Connect",
+        settingsTitle: "System Settings",
+        portLabel: "QUIC Network Port — applied on restart",
+        overshootLabel: "Edge Crossing Overshoot",
+        keymapLabel: "Cross-OS Key Mapping",
+        optSmart: "Smart Ergonomic (Ctrl ↔ Command between Win & Mac)",
+        optCustom: "Custom (Fine-grained modifier & key remapping)",
+        optRaw: "Raw Hardware (Unmodified keys)",
+        specialKeys: "Special Function Keys",
+        capsKeep: "Default (Caps Lock)",
+        addRule: "+ Add",
+        removeRule: "Remove",
+        saveBtn: "Save & Apply Now",
+        noPeers: "No peers connected yet. Scanning LAN via mDNS...",
+        posLeft: "Left",
+        posRight: "Right",
+        posTop: "Top",
+        posBottom: "Bottom",
+        toastSaved: "Settings saved & applied!",
+        toastPlaced: (h, p) => `Placed ${h} at ${p}`,
+        toastConnecting: (a) => `Connecting to ${a}...`,
+        toastPanic: "Control reset to Local!",
+        stateLocal: "Local",
+        stateControlling: "Controlling Remote",
+        stateControlled: "Controlled by Peer",
+        allowOutgoingLabel: "Allow this machine to control peers (Outgoing Control)",
+        axWarning: "⚠️ Missing Accessibility Permission: Outgoing control from this machine is locked to prevent dual-cursor mirroring. Grant Accessibility permission in System Settings → Privacy & Security → Accessibility and relaunch.",
+        tips: (px) => `<strong>Quick Tips:</strong><br/>• Push cursor <strong>${px}px</strong> past the screen edge to switch to the adjacent machine.<br/>• Push back <strong>${px}px</strong> past the edge to return.<br/>• Emergency Panic Hotkey: <code>Ctrl+Alt+Shift+Esc</code> (Win) or <code>Cmd+Opt+Ctrl+Esc</code> (Mac).`
+      }
+    };
+
+    let currentLang = "vi";
+    let lastPeersKey = "";
+
+    function applyTranslations() {
+      const t = I18N[currentLang] || I18N.vi;
+      document.documentElement.lang = currentLang;
+      document.getElementById("langBtn").textContent = t.langBtn;
+      document.getElementById("panicBtn").textContent = t.panicBtn;
+      document.getElementById("exitBtn").textContent = t.exitBtn;
+      document.getElementById("lblTopologyTitle").textContent = t.topologyTitle;
+      document.getElementById("lblSlotTop").textContent = t.slotTop;
+      document.getElementById("lblSlotLeft").textContent = t.slotLeft;
+      document.getElementById("lblSlotHost").textContent = t.slotHost;
+      document.getElementById("lblSlotRight").textContent = t.slotRight;
+      document.getElementById("lblSlotBottom").textContent = t.slotBottom;
+      document.getElementById("lblPeersTitle").textContent = t.peersTitle;
+      document.getElementById("refreshBtn").textContent = t.refreshBtn;
+      document.getElementById("manualPeerInput").placeholder = t.manualPlaceholder;
+      document.getElementById("connectBtn").textContent = t.connectBtn;
+      document.getElementById("lblSettingsTitle").textContent = t.settingsTitle;
+      document.getElementById("lblPort").textContent = t.portLabel;
+      document.getElementById("lblOvershoot").textContent = t.overshootLabel;
+      document.getElementById("lblKeymap").textContent = t.keymapLabel;
+      document.getElementById("optSmart").textContent = t.optSmart;
+      document.getElementById("optCustom").textContent = t.optCustom;
+      document.getElementById("optRaw").textContent = t.optRaw;
+      document.getElementById("lblSpecialKeys").textContent = t.specialKeys;
+      document.getElementById("optCapsKeep").textContent = t.capsKeep;
+      document.getElementById("addRuleBtn").textContent = t.addRule;
+      document.getElementById("lblAllowOutgoing").textContent = t.allowOutgoingLabel;
+      document.getElementById("axWarningBanner").textContent = t.axWarning;
+      document.getElementById("saveBtn").textContent = t.saveBtn;
+      const px = document.getElementById("overshootInput").value || 100;
+      document.getElementById("tipsBox").innerHTML = t.tips(px);
+      renderCustomRules();
+      lastPeersKey = ""; // force peer list label refresh
+    }
+
+    async function toggleLanguage() {
+      currentLang = currentLang === "vi" ? "en" : "vi";
+      applyTranslations();
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("set_language", { language: currentLang });
+      } else {
+        await fetch("/api/language", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ language: currentLang })
+        });
+      }
+      fetchState();
+    }
+
+    const getInvoke = () =>
+      (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) ||
+      (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) ||
+      null;
+
+    function syncOvershoot(val) {
+      document.getElementById("overshootRange").value = val;
+      document.getElementById("overshootInput").value = val;
+      document.getElementById("overshootVal").textContent = `${val} px`;
+      const t = I18N[currentLang] || I18N.vi;
+      document.getElementById("tipsBox").innerHTML = t.tips(val);
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 3000);
+    }
+
+    const HID_KEYS = [
+      [0x29, "Escape"], [0x39, "Caps Lock"], [0x2A, "Backspace"], [0x2B, "Tab"],
+      [0x49, "Insert"], [0x4C, "Delete"], [0x4A, "Home"], [0x4D, "End"],
+      [0x4B, "Page Up"], [0x4E, "Page Down"],
+      [0x3A, "F1"], [0x3B, "F2"], [0x3C, "F3"], [0x3D, "F4"],
+      [0x3E, "F5"], [0x3F, "F6"], [0x40, "F7"], [0x41, "F8"],
+      [0x42, "F9"], [0x43, "F10"], [0x44, "F11"], [0x45, "F12"],
+      [0xE0, "Left Ctrl"], [0xE2, "Left Alt/Opt"], [0xE3, "Left Win/Cmd"]
+    ];
+    let currentRules = [];
+    let keymapLoadedOnce = false;
+    let langLoadedOnce = false;
+
+    function initRuleSelects() {
+      const fromEl = document.getElementById("ruleFrom");
+      const toEl = document.getElementById("ruleTo");
+      if (fromEl.options.length > 0) return;
+      HID_KEYS.forEach(([code, label]) => {
+        fromEl.add(new Option(label, code));
+        toEl.add(new Option(label, code));
+      });
+      fromEl.value = 0x4C;
+      toEl.value = 0x2A;
+    }
+
+    function hidLabel(code) {
+      const found = HID_KEYS.find(([c]) => c === code);
+      return found ? found[1] : `0x${code.toString(16)}`;
+    }
+
+    function toggleCustomKeymapUI() {
+      const mode = document.getElementById("keymapSelect").value;
+      document.getElementById("customKeymapBox").style.display = mode === "Custom" ? "flex" : "none";
+    }
+
+    function renderCustomRules() {
+      const t = I18N[currentLang] || I18N.vi;
+      const list = document.getElementById("customRulesList");
+      list.innerHTML = "";
+      currentRules.forEach((r, idx) => {
+        const row = document.createElement("div");
+        row.className = "row-inline";
+        row.style.justifyContent = "space-between";
+        row.style.fontSize = "12px";
+        row.innerHTML = `<span>${hidLabel(r.from_hid)} → ${hidLabel(r.to_hid)}</span>
+          <button type="button" class="danger" style="padding:2px 8px;font-size:11px;" onclick="removeCustomRule(${idx})">${t.removeRule}</button>`;
+        list.appendChild(row);
+      });
+    }
+
+    let autoSaveTimer = null;
+    function scheduleAutoSave() {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => { saveConfig(true); }, 200);
+    }
+
+    function addCustomRule() {
+      const from_hid = parseInt(document.getElementById("ruleFrom").value, 10);
+      const to_hid = parseInt(document.getElementById("ruleTo").value, 10);
+      currentRules = currentRules.filter(r => r.from_hid !== from_hid);
+      currentRules.push({ from_hid, to_hid });
+      renderCustomRules();
+      scheduleAutoSave();
+    }
+
+    function removeCustomRule(idx) {
+      currentRules.splice(idx, 1);
+      renderCustomRules();
+      scheduleAutoSave();
+    }
+
+    initRuleSelects();
+    applyTranslations();
+
+    async function fetchState() {
+      try {
+        const invoke = getInvoke();
+        let data;
+        if (invoke) {
+          data = await invoke("get_state");
+        } else {
+          const res = await fetch("/api/state");
+          if (!res.ok) return;
+          data = await res.json();
+        }
+
+        if (!langLoadedOnce && data.config.language) {
+          currentLang = data.config.language;
+          applyTranslations();
+          langLoadedOnce = true;
+        }
+        const t = I18N[currentLang] || I18N.vi;
+
+        document.getElementById("hostBadge").textContent = `Host: ${data.hostname} (:${data.actual_port || data.config.listen_port})`;
+        document.getElementById("hostName").textContent = data.hostname;
+        const hostDispCount = data.local_display_count || (data.local_displays ? data.local_displays.length : 1);
+        const dispWord = currentLang === "vi" ? "màn hình" : (hostDispCount > 1 ? "displays" : "display");
+        document.getElementById("hostRes").textContent = `${data.local_resolution} • ${hostDispCount} ${dispWord} • ${data.os}`;
+        const hostInfo = document.getElementById("hostInfo");
+        let hostMini = hostInfo.querySelector(".mini-displays");
+        if (!hostMini) {
+          hostMini = document.createElement("div");
+          hostMini.className = "mini-displays";
+          hostInfo.appendChild(hostMini);
+        }
+        hostMini.innerHTML = renderMiniDisplays(data.local_displays || []);
+        const fLabel = data.focus_state.includes("Controlling")
+          ? t.stateControlling
+          : data.focus_state.includes("Controlled")
+          ? t.stateControlled
+          : t.stateLocal;
+        document.getElementById("stateBadge").textContent = `State: ${fLabel}`;
+
+        if (document.activeElement.id !== "portInput") {
+          document.getElementById("portInput").value = data.config.listen_port;
+        }
+        if (document.activeElement.id !== "overshootInput" && document.activeElement.id !== "overshootRange") {
+          syncOvershoot(data.config.overshoot_px);
+        }
+        if (document.activeElement.id !== "allowOutgoingCheck" && typeof data.config.allow_outgoing === "boolean") {
+          document.getElementById("allowOutgoingCheck").checked = data.config.allow_outgoing;
+        }
+        const axBanner = document.getElementById("axWarningBanner");
+        axBanner.style.display = data.accessibility_ok === false ? "block" : "none";
+        if (!keymapLoadedOnce && data.config.custom_keymap) {
+          document.getElementById("keymapSelect").value = data.config.keymap_mode;
+          const ck = data.config.custom_keymap;
+          document.getElementById("winCtrlToMac").value = ck.win_ctrl_to_mac;
+          document.getElementById("winAltToMac").value = ck.win_alt_to_mac;
+          document.getElementById("winKeyToMac").value = ck.win_key_to_mac;
+          document.getElementById("macCmdToWin").value = ck.mac_cmd_to_win;
+          document.getElementById("macOptToWin").value = ck.mac_opt_to_win;
+          document.getElementById("macCtrlToWin").value = ck.mac_ctrl_to_win;
+          document.getElementById("capsLockTo").value = String(ck.caps_lock_to || 57);
+          currentRules = ck.custom_rules || [];
+          renderCustomRules();
+          toggleCustomKeymapUI();
+          keymapLoadedOnce = true;
+        }
+
+        renderPeers(data.peers, data.config.peer_placements || {});
+      } catch (e) {
+        document.getElementById("hostBadge").textContent = `IPC Err: ${e}`;
+      }
+    }
+
+    function renderMiniDisplays(displays) {
+      if (!displays || !displays.length) return "";
+      const minX = Math.min(...displays.map(d => d.x));
+      const minY = Math.min(...displays.map(d => d.y));
+      const maxX = Math.max(...displays.map(d => d.x + d.width));
+      const maxY = Math.max(...displays.map(d => d.y + d.height));
+      const totalW = Math.max(1, maxX - minX);
+      const totalH = Math.max(1, maxY - minY);
+      const boxW = 84;
+      const scale = boxW / totalW;
+      const boxH = Math.max(16, Math.min(34, Math.round(totalH * scale)));
+      const adjScale = Math.min(boxW / totalW, boxH / totalH);
+      const rects = displays.map((d, i) => {
+        const left = Math.round((d.x - minX) * adjScale);
+        const top = Math.round((d.y - minY) * adjScale);
+        const w = Math.max(8, Math.round(d.width * adjScale));
+        const h = Math.max(6, Math.round(d.height * adjScale));
+        const bg = d.is_primary ? "rgba(56,189,248,0.35)" : "rgba(148,163,184,0.22)";
+        const border = d.is_primary ? "#38bdf8" : "#64748b";
+        return `<div title="${d.width}x${d.height}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;height:${h}px;background:${bg};border:1px solid ${border};border-radius:2px;font-size:8px;display:flex;align-items:center;justify-content:center;color:#e2e8f0;">${i + 1}</div>`;
+      }).join("");
+      return `<div style="position:relative;width:${Math.round(totalW * adjScale)}px;height:${Math.round(totalH * adjScale)}px;margin:4px auto 0;">${rects}</div>`;
+    }
+
+    function renderPeers(peers, placements) {
+      const t = I18N[currentLang] || I18N.vi;
+      const list = document.getElementById("peerList");
+      if (document.activeElement && list.contains(document.activeElement)) {
+        return;
+      }
+      const key = JSON.stringify({ peers, placements, lang: currentLang });
+      if (key === lastPeersKey) {
+        return;
+      }
+      lastPeersKey = key;
+
+      ["Left", "Right", "Top", "Bottom"].forEach(dir => {
+        const slot = document.getElementById(`slot-${dir}`);
+        const label = slot.querySelector(".slot-label").outerHTML;
+        slot.innerHTML = label;
+      });
+
+      if (!peers.length) {
+        list.innerHTML = `<div style="color: var(--muted); font-size: 13px;">${t.noPeers}</div>`;
+        return;
+      }
+
+      list.innerHTML = "";
+      peers.forEach(p => {
+        const pos = placements[p.hostname] || "Right";
+        const slot = document.getElementById(`slot-${pos}`);
+        const dCount = p.display_count || (p.displays ? p.displays.length : 1);
+        const dWord = currentLang === "vi" ? "màn hình" : (dCount > 1 ? "displays" : "display");
+        const resLabel = p.physical_w && p.physical_h ? `${p.physical_w}x${p.physical_h} • ${dCount} ${dWord}` : "";
+        if (slot) {
+          const chip = document.createElement("div");
+          chip.className = "peer-chip";
+          chip.innerHTML = `<span class="name">${p.hostname}</span><span class="meta">${p.os} • ${p.addr}${resLabel ? `<br/>${resLabel}` : ""}</span><div class="mini-displays">${renderMiniDisplays(p.displays || [])}</div>`;
+          slot.appendChild(chip);
+        }
+
+        const item = document.createElement("div");
+        item.className = "peer-item";
+        item.innerHTML = `
+          <div class="info">
+            <strong>${p.hostname}</strong>
+            <span>${p.os} • ${p.addr}${resLabel ? ` • ${resLabel}` : ""}</span>
+          </div>
+          <div class="row-inline">
+            <select style="width: 130px" onchange="setPlacement('${p.hostname}', this.value)">
+              <option value="Left" ${pos === "Left" ? "selected" : ""}>${t.posLeft}</option>
+              <option value="Right" ${pos === "Right" ? "selected" : ""}>${t.posRight}</option>
+              <option value="Top" ${pos === "Top" ? "selected" : ""}>${t.posTop}</option>
+              <option value="Bottom" ${pos === "Bottom" ? "selected" : ""}>${t.posBottom}</option>
+            </select>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    async function setPlacement(hostname, placement) {
+      const t = I18N[currentLang] || I18N.vi;
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("set_placement", { hostname, placement });
+      } else {
+        await fetch("/api/placement", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hostname, placement })
+        });
+      }
+      showToast(t.toastPlaced(hostname, placement));
+      fetchState();
+    }
+
+    async function saveConfig(silent = false) {
+      const t = I18N[currentLang] || I18N.vi;
+      const listen_port = parseInt(document.getElementById("portInput").value, 10) || 51999;
+      const overshoot_px = parseInt(document.getElementById("overshootInput").value, 10) || 100;
+      const keymap_mode = document.getElementById("keymapSelect").value;
+      const allow_outgoing = document.getElementById("allowOutgoingCheck").checked;
+      const custom_keymap = {
+        win_ctrl_to_mac: document.getElementById("winCtrlToMac").value,
+        win_alt_to_mac: document.getElementById("winAltToMac").value,
+        win_key_to_mac: document.getElementById("winKeyToMac").value,
+        mac_cmd_to_win: document.getElementById("macCmdToWin").value,
+        mac_opt_to_win: document.getElementById("macOptToWin").value,
+        mac_ctrl_to_win: document.getElementById("macCtrlToWin").value,
+        caps_lock_to: parseInt(document.getElementById("capsLockTo").value, 10) || 57,
+        custom_rules: currentRules
+      };
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("save_config", {
+          listenPort: listen_port,
+          overshootPx: overshoot_px,
+          keymapMode: keymap_mode,
+          customKeymap: custom_keymap,
+          allowOutgoing: allow_outgoing
+        });
+      } else {
+        await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listen_port, overshoot_px, keymap_mode, custom_keymap, allow_outgoing })
+        });
+      }
+      if (!silent) showToast(t.toastSaved);
+      fetchState();
+    }
+
+    async function addManualPeer() {
+      const t = I18N[currentLang] || I18N.vi;
+      const addr = document.getElementById("manualPeerInput").value.trim();
+      if (!addr) return;
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("add_manual_peer", { addr });
+      } else {
+        await fetch("/api/peers/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ addr })
+        });
+      }
+      document.getElementById("manualPeerInput").value = "";
+      showToast(t.toastConnecting(addr));
+      setTimeout(fetchState, 600);
+    }
+
+    async function triggerPanic() {
+      const t = I18N[currentLang] || I18N.vi;
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("trigger_panic");
+      } else {
+        await fetch("/api/panic", { method: "POST" });
+      }
+      showToast(t.toastPanic);
+      fetchState();
+    }
+
+    async function refreshPeers() {
+      const t = I18N[currentLang] || I18N.vi;
+      const btn = document.getElementById("refreshBtn");
+      btn.disabled = true;
+      btn.textContent = t.refreshingBtn;
+      try {
+        const invoke = getInvoke();
+        if (invoke) {
+          await invoke("refresh_peers");
+        }
+        lastPeersKey = "";
+        await fetchState();
+        showToast(t.toastRefreshed);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = (I18N[currentLang] || I18N.vi).refreshBtn;
+      }
+    }
+
+    async function exitApp() {
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("exit_app");
+      } else {
+        window.close();
+      }
+    }
+
+    fetchState();
+    setInterval(fetchState, 2000);
+  </script>
+</body>
+</html>

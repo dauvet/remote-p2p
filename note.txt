@@ -1,0 +1,7 @@
+win
+cargo build --release --manifest-path apps/p2pkm-ui/src-tauri/Cargo.toml
+.\apps\p2pkm-ui\src-tauri\target\release\p2pkm-ui.exe
+
+mac
+cargo build --release --manifest-path apps/p2pkm-ui/src-tauri/Cargo.toml
+./apps/p2pkm-ui/src-tauri/target/release/p2pkm-ui

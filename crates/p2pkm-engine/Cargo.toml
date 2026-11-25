@@ -1,0 +1,12 @@
+[package]
+name = "p2pkm-engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+p2pkm-proto = { path = "../p2pkm-proto" }
+p2pkm-hal = { path = "../p2pkm-hal" }
+blake3 = "1.5"
+serde.workspace = true
+serde_json = "1.0"
+thiserror.workspace = true

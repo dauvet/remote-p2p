@@ -1,0 +1,15 @@
+# Rust / Cargo build outputs
+target/
+**/target/
+**/*.rs.bk
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+
+# Logs & runtime files
+*.log
+*.pid
+p2pkm-config.json
