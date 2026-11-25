@@ -727,6 +727,9 @@ fn main() {
                     RawInputEvent::MouseButton { pressed: true, .. } if !is_suppressed => {
                         node_bg.preempt_if_controlled().await;
                     }
+                    RawInputEvent::Key { pressed: true, .. } if !is_suppressed => {
+                        node_bg.preempt_if_controlled().await;
+                    }
                     RawInputEvent::MouseMove { dx, dy, abs_x, abs_y } if !is_suppressed => {
                         if dx.abs() + dy.abs() >= 20 {
                             node_bg.preempt_if_controlled().await;

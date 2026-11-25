@@ -239,6 +239,10 @@ unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: 
         }
 
         let mut suppress = false;
+        let is_modifier_vk = matches!(
+            info.vkCode,
+            0x10 | 0x11 | 0x12 | 0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5 | 0x5B | 0x5C
+        );
         HOOK_STATE.with(|cell| {
             if let Some(st) = cell.borrow_mut().as_mut() {
                 suppress = st.ctrl.is_suppressed();
@@ -254,7 +258,9 @@ unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: 
             }
         });
 
-        if suppress {
+        // Never swallow modifier KeyUp locally so Alt/Ctrl/Shift/Win can never get stuck
+        // if pressed before an edge crossing and released after.
+        if suppress && !(released && is_modifier_vk) {
             return LRESULT(1);
         }
     }

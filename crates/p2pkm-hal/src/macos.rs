@@ -166,6 +166,7 @@ extern "C" fn event_tap_callback(
         }
     }
 
+    let mut pass_through_modifier_up = false;
     let suppressed = ctx.ctrl.is_suppressed();
     if let Ok(mut p) = ctx.prod.try_lock() {
         match event_type {
@@ -247,6 +248,9 @@ extern "C" fn event_tap_callback(
                         hid_usage: hid,
                         pressed,
                     });
+                    if !pressed {
+                        pass_through_modifier_up = true;
+                    }
                 }
             }
             _ => {}
@@ -255,7 +259,8 @@ extern "C" fn event_tap_callback(
 
     // Returning NULL at the C ABI level guarantees CoreGraphics swallows the event
     // for all apps (working around core-graphics 0.24's Option::None passthrough bug).
-    if suppressed {
+    // Never swallow modifier releases so Option/Cmd/Ctrl/Shift never get stuck locally.
+    if suppressed && !pass_through_modifier_up {
         std::ptr::null_mut()
     } else {
         event
