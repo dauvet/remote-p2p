@@ -447,7 +447,10 @@ fn ensure_single_instance() -> bool {
 }
 
 fn build_tray_icon() -> Image<'static> {
-    // 16x16 crisp cyan-blue rounded square icon in RGBA
+    if let Ok(img) = Image::from_bytes(include_bytes!("../icons/32x32.png")) {
+        return img.to_owned();
+    }
+    // Fallback 16x16 cyan-blue rounded square icon in RGBA
     let mut rgba = Vec::with_capacity(16 * 16 * 4);
     for y in 0..16 {
         for x in 0..16 {

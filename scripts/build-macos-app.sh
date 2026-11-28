@@ -18,6 +18,9 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/p2pkm-ui"
 chmod +x "$APP_DIR/Contents/MacOS/p2pkm-ui"
+if [ -f "apps/p2pkm-ui/src-tauri/icons/icon.icns" ]; then
+  cp "apps/p2pkm-ui/src-tauri/icons/icon.icns" "$APP_DIR/Contents/Resources/icon.icns"
+fi
 
 cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -28,6 +31,8 @@ cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
   <string>en</string>
   <key>CFBundleExecutable</key>
   <string>p2pkm-ui</string>
+  <key>CFBundleIconFile</key>
+  <string>icon.icns</string>
   <key>CFBundleIdentifier</key>
   <string>com.remotep2p.mesh</string>
   <key>CFBundleInfoDictionaryVersion</key>
