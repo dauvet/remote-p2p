@@ -295,7 +295,10 @@
         </label>
       </div>
 
-      <div id="axWarningBanner" style="display:none; background:rgba(239,68,68,0.12); border:1px solid #ef4444; color:#fca5a5; border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.45;"></div>
+      <div id="axWarningBanner" style="display:none; background:rgba(239,68,68,0.12); border:1px solid #ef4444; color:#fca5a5; border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.45; flex-direction:column; gap:8px;">
+        <div id="axWarningText"></div>
+        <button id="axGrantBtn" type="button" onclick="requestAccessibility()" style="align-self:flex-start; background:#ef4444; color:#fff; padding:6px 12px; font-size:12px;">🔓 Xin quyền & Mở cài đặt Accessibility</button>
+      </div>
 
       <button id="saveBtn" onclick="saveConfig(false)">Lưu & Áp dụng ngay</button>
       <div id="toast" class="toast"></div>
@@ -348,6 +351,8 @@
         stateControlled: "Đang bị điều khiển",
         allowOutgoingLabel: "Cho phép máy này điều khiển máy khác (Outgoing Control)",
         axWarning: "⚠️ Thiếu quyền Accessibility (Trợ năng): Đã khóa chiều điều khiển đi từ máy này để tránh lỗi điều khiển song song 2 máy. Hãy cấp quyền cho app trong System Settings → Privacy & Security → Accessibility rồi mở lại app.",
+        axGrantBtn: "🔓 Xin quyền & Mở cài đặt Accessibility",
+        toastAxOpened: "Đã mở trang Privacy & Security → Accessibility. Hãy bật quyền cho Remote P2P!",
         tips: (px) => `<strong>Mẹo sử dụng:</strong><br/>• Đẩy chuột vượt mép màn hình <strong>${px}px</strong> để chuyển sang máy kế bên.<br/>• Kéo ngược lại vượt mép âm <strong>${px}px</strong> để tự động quay về.<br/>• Phím thoát khẩn cấp: <code>Ctrl+Alt+Shift+Esc</code> (Win) hoặc <code>Cmd+Opt+Ctrl+Esc</code> (Mac).`
       },
       en: {
@@ -392,6 +397,8 @@
         stateControlled: "Controlled by Peer",
         allowOutgoingLabel: "Allow this machine to control peers (Outgoing Control)",
         axWarning: "⚠️ Missing Accessibility Permission: Outgoing control from this machine is locked to prevent dual-cursor mirroring. Grant Accessibility permission in System Settings → Privacy & Security → Accessibility and relaunch.",
+        axGrantBtn: "🔓 Request & Open Accessibility Settings",
+        toastAxOpened: "Opened Privacy & Security → Accessibility. Please enable Remote P2P!",
         tips: (px) => `<strong>Quick Tips:</strong><br/>• Push cursor <strong>${px}px</strong> past the screen edge to switch to the adjacent machine.<br/>• Push back <strong>${px}px</strong> past the edge to return.<br/>• Emergency Panic Hotkey: <code>Ctrl+Alt+Shift+Esc</code> (Win) or <code>Cmd+Opt+Ctrl+Esc</code> (Mac).`
       }
     };
@@ -426,7 +433,8 @@
       document.getElementById("optCapsKeep").textContent = t.capsKeep;
       document.getElementById("addRuleBtn").textContent = t.addRule;
       document.getElementById("lblAllowOutgoing").textContent = t.allowOutgoingLabel;
-      document.getElementById("axWarningBanner").textContent = t.axWarning;
+      document.getElementById("axWarningText").textContent = t.axWarning;
+      document.getElementById("axGrantBtn").textContent = t.axGrantBtn;
       document.getElementById("saveBtn").textContent = t.saveBtn;
       const px = document.getElementById("overshootInput").value || 100;
       document.getElementById("tipsBox").innerHTML = t.tips(px);
@@ -592,7 +600,7 @@
           document.getElementById("allowOutgoingCheck").checked = data.config.allow_outgoing;
         }
         const axBanner = document.getElementById("axWarningBanner");
-        axBanner.style.display = data.accessibility_ok === false ? "block" : "none";
+        axBanner.style.display = data.accessibility_ok === false ? "flex" : "none";
         if (!keymapLoadedOnce && data.config.custom_keymap) {
           document.getElementById("keymapSelect").value = data.config.keymap_mode;
           const ck = data.config.custom_keymap;
@@ -777,6 +785,16 @@
       }
       showToast(t.toastPanic);
       fetchState();
+    }
+
+    async function requestAccessibility() {
+      const t = I18N[currentLang] || I18N.vi;
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("request_accessibility");
+      }
+      showToast(t.toastAxOpened);
+      setTimeout(fetchState, 1000);
     }
 
     async function refreshPeers() {

@@ -4,6 +4,7 @@ use crate::{
 };
 use core_foundation::base::{CFTypeRef, TCFType};
 use core_foundation::boolean::CFBoolean;
+use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::mach_port::{CFMachPort, CFMachPortRef};
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
 use core_foundation::string::{CFString, CFStringRef};
@@ -19,7 +20,9 @@ use std::sync::{Arc, Mutex};
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
+    static kAXTrustedCheckOptionPrompt: CFStringRef;
     fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(options: CFDictionaryRef) -> bool;
 }
 
 type RawCGEventRef = *mut std::ffi::c_void;
@@ -88,6 +91,23 @@ fn enable_background_cursor_control() {
 
 pub fn is_accessibility_trusted() -> bool {
     unsafe { AXIsProcessTrusted() }
+}
+
+/// Triggers the native macOS Accessibility permission prompt (registering the app in the
+/// Accessibility list) and opens System Settings directly to Privacy & Security -> Accessibility.
+pub fn request_accessibility_permission() -> bool {
+    let trusted = unsafe {
+        let key = CFString::wrap_under_get_rule(kAXTrustedCheckOptionPrompt);
+        let val = CFBoolean::true_value();
+        let dict = CFDictionary::from_CFType_pairs(&[(key, val)]);
+        AXIsProcessTrustedWithOptions(dict.as_concrete_TypeRef())
+    };
+    if !trusted {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn();
+    }
+    trusted
 }
 
 pub fn enumerate_displays() -> Result<Vec<DisplayInfo>, HalError> {

@@ -369,6 +369,18 @@ async fn trigger_panic(state: tauri::State<'_, AppState>) -> Result<(), String> 
 }
 
 #[tauri::command]
+fn request_accessibility() -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        Ok(p2pkm_hal::macos::request_accessibility_permission())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(true)
+    }
+}
+
+#[tauri::command]
 async fn refresh_peers(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.node.refresh_peers().await;
     let cfg = state.config.read().await.clone();
@@ -862,6 +874,7 @@ fn main() {
             set_placement,
             add_manual_peer,
             trigger_panic,
+            request_accessibility,
             refresh_peers,
             set_language,
             exit_app
