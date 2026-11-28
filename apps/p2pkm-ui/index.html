@@ -145,6 +145,7 @@
     </div>
     <div class="row-inline">
       <button id="langBtn" class="secondary" onclick="toggleLanguage()">🌐 VI</button>
+      <button id="pauseBtn" class="secondary" onclick="togglePause()">⏸️ Tạm dừng</button>
       <button id="panicBtn" class="danger" onclick="triggerPanic()">Panic Reset (Local)</button>
       <button id="exitBtn" class="danger" onclick="exitApp()">Thoát (Exit)</button>
     </div>
@@ -311,6 +312,8 @@
     const I18N = {
       vi: {
         langBtn: "🌐 Tiếng Việt",
+        pauseBtn: "⏸️ Tạm dừng",
+        resumeBtn: "▶️ Tiếp tục",
         panicBtn: "Panic Reset (Local)",
         exitBtn: "Thoát (Exit)",
         topologyTitle: "Bố trí vị trí thiết bị (So với máy Host ở giữa)",
@@ -347,8 +350,11 @@
         toastConnecting: (a) => `Đang kết nối tới ${a}...`,
         toastPanic: "Đã reset quyền điều khiển về Local!",
         stateLocal: "Local",
+        statePaused: "Đã tạm dừng",
         stateControlling: "Đang điều khiển",
         stateControlled: "Đang bị điều khiển",
+        toastPaused: "Đã tạm dừng Remote P2P!",
+        toastResumed: "Đã tiếp tục Remote P2P!",
         allowOutgoingLabel: "Cho phép máy này điều khiển máy khác (Outgoing Control)",
         axWarning: "⚠️ Thiếu quyền Accessibility (Trợ năng): Đã khóa chiều điều khiển đi từ máy này để tránh lỗi điều khiển song song 2 máy. Hãy cấp quyền cho app trong System Settings → Privacy & Security → Accessibility rồi mở lại app.",
         axGrantBtn: "🔓 Xin quyền & Mở cài đặt Accessibility",
@@ -357,6 +363,8 @@
       },
       en: {
         langBtn: "🌐 English",
+        pauseBtn: "⏸️ Pause",
+        resumeBtn: "▶️ Resume",
         panicBtn: "Panic Reset (Local)",
         exitBtn: "Exit",
         topologyTitle: "Device Layout (Relative to Host in Center)",
@@ -393,8 +401,11 @@
         toastConnecting: (a) => `Connecting to ${a}...`,
         toastPanic: "Control reset to Local!",
         stateLocal: "Local",
+        statePaused: "Paused",
         stateControlling: "Controlling Remote",
         stateControlled: "Controlled by Peer",
+        toastPaused: "Remote P2P paused!",
+        toastResumed: "Remote P2P resumed!",
         allowOutgoingLabel: "Allow this machine to control peers (Outgoing Control)",
         axWarning: "⚠️ Missing Accessibility Permission: Outgoing control from this machine is locked to prevent dual-cursor mirroring. Grant Accessibility permission in System Settings → Privacy & Security → Accessibility and relaunch.",
         axGrantBtn: "🔓 Request & Open Accessibility Settings",
@@ -404,12 +415,22 @@
     };
 
     let currentLang = "vi";
+    let isPaused = false;
     let lastPeersKey = "";
+
+    function updatePauseUi() {
+      const t = I18N[currentLang] || I18N.vi;
+      const btn = document.getElementById("pauseBtn");
+      if (!btn) return;
+      btn.textContent = isPaused ? t.resumeBtn : t.pauseBtn;
+      btn.className = isPaused ? "" : "secondary";
+    }
 
     function applyTranslations() {
       const t = I18N[currentLang] || I18N.vi;
       document.documentElement.lang = currentLang;
       document.getElementById("langBtn").textContent = t.langBtn;
+      updatePauseUi();
       document.getElementById("panicBtn").textContent = t.panicBtn;
       document.getElementById("exitBtn").textContent = t.exitBtn;
       document.getElementById("lblTopologyTitle").textContent = t.topologyTitle;
@@ -583,12 +604,19 @@
           hostInfo.appendChild(hostMini);
         }
         hostMini.innerHTML = renderMiniDisplays(data.local_displays || []);
-        const fLabel = data.focus_state.includes("Controlling")
+        isPaused = !!data.paused;
+        updatePauseUi();
+        const fLabel = isPaused
+          ? t.statePaused
+          : data.focus_state.includes("Controlling")
           ? t.stateControlling
           : data.focus_state.includes("Controlled")
           ? t.stateControlled
           : t.stateLocal;
-        document.getElementById("stateBadge").textContent = `State: ${fLabel}`;
+        const sb = document.getElementById("stateBadge");
+        sb.textContent = `State: ${fLabel}`;
+        sb.style.background = isPaused ? "rgba(245, 158, 11, 0.2)" : "";
+        sb.style.color = isPaused ? "#fbbf24" : "";
 
         if (document.activeElement.id !== "portInput") {
           document.getElementById("portInput").value = data.config.listen_port;
@@ -773,6 +801,19 @@
       document.getElementById("manualPeerInput").value = "";
       showToast(t.toastConnecting(addr));
       setTimeout(fetchState, 600);
+    }
+
+    async function togglePause() {
+      const t = I18N[currentLang] || I18N.vi;
+      const invoke = getInvoke();
+      if (invoke) {
+        isPaused = await invoke("toggle_pause");
+      } else {
+        isPaused = !isPaused;
+      }
+      updatePauseUi();
+      showToast(isPaused ? t.toastPaused : t.toastResumed);
+      fetchState();
     }
 
     async function triggerPanic() {

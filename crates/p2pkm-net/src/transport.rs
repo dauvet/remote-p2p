@@ -10,7 +10,7 @@ use quinn::{ClientConfig, Connection, Endpoint, ServerConfig};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
@@ -146,6 +146,7 @@ pub struct MeshNode {
     controlled_entry: Arc<Mutex<Option<(ScreenEdge, bool, i32)>>>,
     last_exit_edge: Arc<Mutex<Option<ScreenEdge>>>,
     return_overshoot_px: AtomicI32,
+    paused: AtomicBool,
     seq: AtomicU32,
 }
 
@@ -226,6 +227,7 @@ impl MeshNode {
             controlled_entry: Arc::new(Mutex::new(None)),
             last_exit_edge: Arc::new(Mutex::new(None)),
             return_overshoot_px: AtomicI32::new(DEFAULT_OVERSHOOT_PX),
+            paused: AtomicBool::new(false),
             seq: AtomicU32::new(1),
         });
 
@@ -237,6 +239,14 @@ impl MeshNode {
 
     pub fn set_return_overshoot_px(&self, px: i32) {
         self.return_overshoot_px.store(px.max(10), Ordering::Relaxed);
+    }
+
+    pub fn set_paused(&self, paused: bool) {
+        self.paused.store(paused, Ordering::Relaxed);
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Relaxed)
     }
 
     pub async fn set_key_map(&self, mode: KeyMapMode, custom: CustomKeyMap) {
@@ -579,6 +589,9 @@ impl MeshNode {
     }
 
     pub async fn broadcast_clipboard_text(&self, text: &str) {
+        if self.is_paused() {
+            return;
+        }
         let payload = ClipboardPayload::Text(text.to_string());
         let is_new = {
             let mut guard = self.clipboard_guard.lock().await;
@@ -1162,6 +1175,17 @@ impl MeshNode {
                 entry_edge,
                 edge_ratio,
             } => {
+                if self.is_paused() {
+                    let _ = send_reliable(
+                        conn,
+                        &Packet::FocusReject {
+                            epoch,
+                            current_controller: self.peer_id,
+                        },
+                    )
+                    .await;
+                    return;
+                }
                 let decision = {
                     let mut fsm = self.fsm.lock().await;
                     fsm.on_incoming_focus_request(from_peer, epoch, Instant::now())

@@ -101,6 +101,7 @@ struct AppState {
     config_path: PathBuf,
     overshoot_limit: Arc<AtomicI32>,
     allow_outgoing: Arc<AtomicBool>,
+    pause_menu: Arc<std::sync::Mutex<Option<MenuItem<tauri::Wry>>>>,
 }
 
 #[derive(Serialize)]
@@ -125,6 +126,7 @@ struct UiStateResponse {
     local_display_count: usize,
     local_displays: Vec<p2pkm_proto::RemoteDisplayRect>,
     focus_state: String,
+    paused: bool,
     accessibility_ok: bool,
     config: AppConfig,
     peers: Vec<UiPeer>,
@@ -289,6 +291,7 @@ async fn get_state(state: tauri::State<'_, AppState>) -> Result<UiStateResponse,
         local_display_count: fresh_rects.len().max(1),
         local_displays: fresh_rects,
         focus_state: fstate,
+        paused: state.node.is_paused(),
         accessibility_ok: can_suppress_outgoing(),
         config: cfg,
         peers,
@@ -366,6 +369,28 @@ async fn trigger_panic(state: tauri::State<'_, AppState>) -> Result<(), String> 
     unpark_cursor();
     state.node.revoke_focus(1).await;
     Ok(())
+}
+
+#[tauri::command]
+async fn toggle_pause(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    let next = !state.node.is_paused();
+    state.node.set_paused(next);
+    if next {
+        unpark_cursor();
+        state.node.revoke_focus(1).await;
+    }
+    if let Ok(guard) = state.pause_menu.lock() {
+        if let Some(item) = guard.as_ref() {
+            let label = if next {
+                "Resume Remote P2P"
+            } else {
+                "Pause Remote P2P"
+            };
+            let _ = item.set_text(label);
+        }
+    }
+    info!(paused = next, "Toggled Remote P2P pause state");
+    Ok(next)
 }
 
 #[tauri::command]
@@ -749,7 +774,8 @@ fn main() {
                         if dx.abs() + dy.abs() >= 20 {
                             node_bg.preempt_if_controlled().await;
                         }
-                        if allow_outgoing_bg.load(Ordering::Relaxed)
+                        if !node_bg.is_paused()
+                            && allow_outgoing_bg.load(Ordering::Relaxed)
                             && can_suppress_outgoing()
                             && last_focus_req.elapsed() >= Duration::from_millis(200)
                         {
@@ -787,6 +813,10 @@ fn main() {
         }
     });
 
+    let pause_menu: Arc<std::sync::Mutex<Option<MenuItem<tauri::Wry>>>> =
+        Arc::new(std::sync::Mutex::new(None));
+    let pause_menu_setup = Arc::clone(&pause_menu);
+
     let app_state = AppState {
         node: Arc::clone(&node),
         desktop,
@@ -796,6 +826,7 @@ fn main() {
         config_path,
         overshoot_limit,
         allow_outgoing,
+        pause_menu,
     };
 
     let node_panic = Arc::clone(&node);
@@ -833,11 +864,17 @@ fn main() {
                 .ok();
 
             let show = MenuItem::with_id(app, "show", "Show Control Center", true, None::<&str>)?;
+            let pause_item =
+                MenuItem::with_id(app, "pause", "Pause Remote P2P", true, None::<&str>)?;
             let panic = MenuItem::with_id(app, "panic", "Panic Reset (Local)", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &panic, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &pause_item, &panic, &quit])?;
+            if let Ok(mut g) = pause_menu_setup.lock() {
+                *g = Some(pause_item.clone());
+            }
 
             let np = Arc::clone(&node_panic);
+            let pause_item_ev = pause_item.clone();
             TrayIconBuilder::new()
                 .icon(build_tray_icon())
                 .tooltip("Remote P2P")
@@ -848,6 +885,24 @@ fn main() {
                             let _ = win.show();
                             let _ = win.set_focus();
                         }
+                    }
+                    "pause" => {
+                        let next = !np.is_paused();
+                        np.set_paused(next);
+                        let label = if next {
+                            "Resume Remote P2P"
+                        } else {
+                            "Pause Remote P2P"
+                        };
+                        let _ = pause_item_ev.set_text(label);
+                        if next {
+                            unpark_cursor();
+                            let np2 = Arc::clone(&np);
+                            tauri::async_runtime::spawn(async move {
+                                np2.revoke_focus(1).await;
+                            });
+                        }
+                        info!(paused = next, "Toggled Remote P2P pause state from tray");
                     }
                     "panic" => {
                         unpark_cursor();
@@ -877,6 +932,7 @@ fn main() {
             set_placement,
             add_manual_peer,
             trigger_panic,
+            toggle_pause,
             request_accessibility,
             refresh_peers,
             set_language,
